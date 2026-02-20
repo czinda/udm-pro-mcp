@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "udm-pro": {
+      "command": "udm-pro-mcp",
+      "env": {}
+    }
+  }
+}
