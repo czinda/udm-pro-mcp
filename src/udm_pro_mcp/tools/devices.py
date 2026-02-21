@@ -28,10 +28,11 @@ async def list_devices(ctx: Context[ServerSession, AppContext]) -> str:
         state_str = {1: "connected", 0: "disconnected", 2: "pending"}.get(
             d.state, f"state={d.state}"
         )
+        upgrade_str = f" | UPGRADE -> v{d.upgrade_to_firmware}" if d.upgradable else ""
         lines.append(
-            f"- {d.name or d.mac} | {d.model} | {d.type} | {d.ip} | "
+            f"- {d.name or d.mac} | {d.mac} | {d.model} | {d.type} | {d.ip} | "
             f"{state_str} | v{d.version} | clients={d.num_sta} | "
-            f"uptime={_human_duration(d.uptime)}"
+            f"uptime={_human_duration(d.uptime)}{upgrade_str}"
         )
     return "\n".join(lines)
 

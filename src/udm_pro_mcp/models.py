@@ -37,6 +37,8 @@ class DeviceSummary(BaseModel):
     num_sta: int = Field(0, description="Number of connected stations")
     tx_bytes: int = 0
     rx_bytes: int = 0
+    upgradable: bool = False
+    upgrade_to_firmware: str = ""
 
     @classmethod
     def from_api(cls, data: dict) -> DeviceSummary:
@@ -53,6 +55,8 @@ class DeviceSummary(BaseModel):
             num_sta=data.get("num_sta", 0),
             tx_bytes=data.get("tx_bytes", 0),
             rx_bytes=data.get("rx_bytes", 0),
+            upgradable=data.get("upgradable", False),
+            upgrade_to_firmware=data.get("upgrade_to_firmware", ""),
         )
 
 
