@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 
@@ -146,18 +148,60 @@ async def power_cycle_port(
     return f"Power cycle initiated on port {port_idx} of switch {mac}."
 
 
+def _format_speedtest(status: dict) -> str:
+    """Format speedtest_status fields into a human-readable result."""
+    fields = [
+        ("Download", f"{status.get('xput_download', '?')} Mbps"),
+        ("Upload", f"{status.get('xput_upload', '?')} Mbps"),
+        ("Latency", f"{status.get('latency', '?')} ms"),
+        ("Server", status.get("server_desc")),
+    ]
+    return "Speed Test Results:\n" + "\n".join(
+        f"  {k}: {v}" for k, v in fields if v is not None
+    )
+
+
+async def _find_udm(ctx: Context[ServerSession, AppContext]) -> dict | None:
+    """Find the UDM/gateway device in the device list."""
+    data = await _client(ctx).get("stat/device")
+    for d in data:
+        if d.get("type") in ("udm", "ugw"):
+            return d
+    return None
+
+
 @mcp.tool()
 async def run_speedtest(ctx: Context[ServerSession, AppContext]) -> str:
     """Run a speed test from the UDM Pro and return results."""
-    # Trigger speedtest
     await _client(ctx).post_cmd("devmgr", "speedtest")
-    return ("Speed test initiated. Results will be available in the health "
-            "endpoint shortly. Use get_site_health or get_isp_metrics to check.")
+
+    # Poll the UDM device for completed results
+    for _ in range(30):
+        await asyncio.sleep(2)
+        udm = await _find_udm(ctx)
+        if not udm:
+            continue
+        status = udm.get("speedtest-status", {})
+        st_down = status.get("status_download", 0)
+        st_up = status.get("status_upload", 0)
+        # status 2 = finished for both download and upload
+        if st_down == 2 and st_up == 2:
+            return _format_speedtest(status)
+
+    return "Speed test timed out waiting for results. Try get_speedtest_results later."
 
 
 @mcp.tool()
 async def get_speedtest_results(ctx: Context[ServerSession, AppContext]) -> str:
     """Get the latest speed test results."""
+    # First try the live device status (most reliable)
+    udm = await _find_udm(ctx)
+    if udm:
+        status = udm.get("speedtest-status", {})
+        if status.get("xput_download"):
+            return _format_speedtest(status)
+
+    # Fall back to the historical archive
     data = await _client(ctx).get("stat/report/archive.speedtest")
     if not data:
         return "No speed test results available."
