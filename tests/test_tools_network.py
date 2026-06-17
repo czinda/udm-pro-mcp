@@ -205,6 +205,75 @@ async def test_update_wlan_multicast_maps_to_mcastenhance(mock_ctx, mock_api_cli
 
 
 @pytest.mark.asyncio
+async def test_update_wlan_radius_fields(mock_ctx, mock_api_client):
+    mock_api_client.put.return_value = {}
+    from udm_pro_mcp.tools.network import update_wlan
+    result = await update_wlan(
+        "wlan1",
+        radius_mac_auth_enabled=True,
+        radius_profile_id="radius123",
+        ctx=mock_ctx,
+    )
+    assert "updated" in result
+    assert "radius_mac_auth_enabled=True" in result
+    call_payload = mock_api_client.put.call_args[0][1]
+    assert call_payload["radius_mac_auth_enabled"] is True
+    assert call_payload["radius_profile_id"] == "radius123"
+
+
+@pytest.mark.asyncio
+async def test_list_radius_profiles(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = [
+        {
+            "_id": "rad1",
+            "name": "FreeRADIUS",
+            "vlan_wlan_mode": "optional",
+            "auth_servers": [{"ip": "192.168.1.121", "port": 1812}],
+        }
+    ]
+    from udm_pro_mcp.tools.network import list_radius_profiles
+    result = await list_radius_profiles(mock_ctx)
+    assert "FreeRADIUS" in result
+    assert "192.168.1.121" in result
+    assert "rad1" in result
+
+
+@pytest.mark.asyncio
+async def test_list_radius_profiles_empty(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = []
+    from udm_pro_mcp.tools.network import list_radius_profiles
+    result = await list_radius_profiles(mock_ctx)
+    assert "No RADIUS profiles" in result
+
+
+@pytest.mark.asyncio
+async def test_create_radius_profile(mock_ctx, mock_api_client):
+    mock_api_client.post.return_value = [{"_id": "rad-new"}]
+    from udm_pro_mcp.tools.network import create_radius_profile
+    result = await create_radius_profile(
+        name="FreeRADIUS",
+        auth_server_ip="192.168.1.121",
+        auth_server_secret="testsecret",
+        vlan_wlan_mode="optional",
+        ctx=mock_ctx,
+    )
+    assert "FreeRADIUS" in result
+    assert "rad-new" in result
+    call_payload = mock_api_client.post.call_args[0][1]
+    assert call_payload["auth_servers"][0]["ip"] == "192.168.1.121"
+    assert call_payload["vlan_wlan_mode"] == "optional"
+
+
+@pytest.mark.asyncio
+async def test_delete_radius_profile(mock_ctx, mock_api_client):
+    mock_api_client.delete.return_value = {}
+    from udm_pro_mcp.tools.network import delete_radius_profile
+    result = await delete_radius_profile("rad1", mock_ctx)
+    assert "rad1" in result
+    mock_api_client.delete.assert_called_once_with("rest/radiusprofile/rad1")
+
+
+@pytest.mark.asyncio
 async def test_list_port_forwards(mock_ctx, mock_api_client):
     mock_api_client.get.return_value = [
         {

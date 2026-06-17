@@ -206,6 +206,11 @@ async def get_wlan_details(
             ("5GHz Enabled", w.get("minrate_na_enabled")),
             ("5GHz Rate (kbps)", w.get("minrate_na_data_rate_kbps")),
         ],
+        "RADIUS": [
+            ("RADIUS MAC Auth", w.get("radius_mac_auth_enabled")),
+            ("RADIUS Profile ID", w.get("radius_profile_id")),
+            ("RADIUS MAC Format", w.get("radius_mac_format")),
+        ],
         "MAC Filter": [
             ("MAC Filter", w.get("mac_filter_enabled")),
             ("MAC Filter Policy", w.get("mac_filter_policy")),
@@ -260,6 +265,8 @@ async def update_wlan(
     minrate_ng_data_rate_kbps: int | None = None,
     minrate_na_data_rate_kbps: int | None = None,
     wlan_band: str | None = None,
+    radius_mac_auth_enabled: bool | None = None,
+    radius_profile_id: str | None = None,
     ctx: Context[ServerSession, AppContext] = None,  # type: ignore[assignment]
 ) -> str:
     """Update wireless network settings.
@@ -290,6 +297,8 @@ async def update_wlan(
         minrate_ng_data_rate_kbps: Minimum data rate for 2.4GHz in kbps.
         minrate_na_data_rate_kbps: Minimum data rate for 5GHz in kbps.
         wlan_band: Band selection — '2g', '5g', or 'both'.
+        radius_mac_auth_enabled: Enable RADIUS MAC authentication for dynamic VLAN.
+        radius_profile_id: RADIUS profile ID (from list_radius_profiles).
     """
     field_map = {
         "security": security,
@@ -316,6 +325,8 @@ async def update_wlan(
         "minrate_ng_data_rate_kbps": minrate_ng_data_rate_kbps,
         "minrate_na_data_rate_kbps": minrate_na_data_rate_kbps,
         "wlan_band": wlan_band,
+        "radius_mac_auth_enabled": radius_mac_auth_enabled,
+        "radius_profile_id": radius_profile_id,
     }
     payload = {k: v for k, v in field_map.items() if v is not None}
     if not payload:
@@ -424,6 +435,90 @@ async def delete_firewall_rule(
     """Delete a firewall rule by its ID."""
     await _client(ctx).delete(f"rest/firewallrule/{rule_id}")
     return f"Firewall rule {rule_id} deleted."
+
+
+# ---- RADIUS Profiles ----
+
+
+@mcp.tool()
+async def list_radius_profiles(ctx: Context[ServerSession, AppContext]) -> str:
+    """List all RADIUS profiles configured on the controller."""
+    data = await _client(ctx).get("rest/radiusprofile")
+    if not data:
+        return "No RADIUS profiles configured."
+    lines = [f"RADIUS profiles ({len(data)}):"]
+    for r in data:
+        name = r.get("name", "unnamed")
+        vlan_enabled = r.get("use_usg_auth_server", False)
+        vlan_wlan = r.get("vlan_wlan_mode", "disabled")
+        auth_servers = r.get("auth_servers", [])
+        server_str = ""
+        if auth_servers:
+            s = auth_servers[0]
+            server_str = f" | {s.get('ip', '?')}:{s.get('port', 1812)}"
+        lines.append(
+            f"- {name} | VLAN(wlan)={vlan_wlan}{server_str} | id={r.get('_id', '')}"
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def create_radius_profile(
+    name: str,
+    auth_server_ip: str,
+    auth_server_port: int = 1812,
+    auth_server_secret: str = "",
+    acct_server_ip: str | None = None,
+    acct_server_port: int = 1813,
+    vlan_wlan_mode: str = "optional",
+    ctx: Context[ServerSession, AppContext] = None,  # type: ignore[assignment]
+) -> str:
+    """Create a RADIUS profile for MAC authentication or 802.1X.
+
+    Args:
+        name: Profile name.
+        auth_server_ip: RADIUS authentication server IP address.
+        auth_server_port: Authentication port (default 1812).
+        auth_server_secret: Shared secret between AP and RADIUS server.
+        acct_server_ip: Optional accounting server IP (often same as auth).
+        acct_server_port: Accounting port (default 1813).
+        vlan_wlan_mode: VLAN assignment for wireless — 'disabled', 'optional', 'required'.
+    """
+    payload: dict[str, Any] = {
+        "name": name,
+        "auth_servers": [
+            {
+                "ip": auth_server_ip,
+                "port": auth_server_port,
+                "x_secret": auth_server_secret,
+            }
+        ],
+        "vlan_wlan_mode": vlan_wlan_mode,
+    }
+    if acct_server_ip:
+        payload["acct_servers"] = [
+            {
+                "ip": acct_server_ip,
+                "port": acct_server_port,
+                "x_secret": auth_server_secret,
+            }
+        ]
+    data = await _client(ctx).post("rest/radiusprofile", payload)
+    new_id = ""
+    if isinstance(data, list) and data:
+        new_id = data[0].get("_id", "")
+    elif isinstance(data, dict):
+        new_id = data.get("_id", "")
+    return f"RADIUS profile '{name}' created (id={new_id})."
+
+
+@mcp.tool()
+async def delete_radius_profile(
+    profile_id: str, ctx: Context[ServerSession, AppContext]
+) -> str:
+    """Delete a RADIUS profile by its ID."""
+    await _client(ctx).delete(f"rest/radiusprofile/{profile_id}")
+    return f"RADIUS profile {profile_id} deleted."
 
 
 # ---- Port Forwarding ----
