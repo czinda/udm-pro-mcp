@@ -66,6 +66,39 @@ async def test_list_active_clients(mock_ctx, mock_api_client):
 
 
 @pytest.mark.asyncio
+async def test_get_client_details_with_ap(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = [
+        {
+            "hostname": "PlayStation Portal",
+            "mac": "b4:1f:4d:8e:89:5a",
+            "ip": "192.168.6.108",
+            "is_wired": False,
+            "network": "gaming",
+            "vlan": 5,
+            "signal": -45,
+            "channel": 149,
+            "radio": "na",
+            "tx_rate": 433300,
+            "rx_rate": 433300,
+            "tx_bytes": 1000000,
+            "rx_bytes": 5000000,
+            "uptime": 600,
+            "ap_mac": "0c:ea:14:39:b7:36",
+            "ap_name": "Living Room",
+            "essid": "404: Sleep Not Found",
+            "radio_proto": "ac",
+        }
+    ]
+    from udm_pro_mcp.tools.monitoring import get_client_details
+    result = await get_client_details("b4:1f:4d:8e:89:5a", mock_ctx)
+    assert "PlayStation Portal" in result
+    assert "AP MAC: 0c:ea:14:39:b7:36" in result
+    assert "AP Name: Living Room" in result
+    assert "ESSID: 404: Sleep Not Found" in result
+    assert "Radio Proto: ac" in result
+
+
+@pytest.mark.asyncio
 async def test_list_alarms_no_active(mock_ctx, mock_api_client):
     mock_api_client.get.return_value = [
         {"_id": "1", "key": "test", "msg": "old alarm", "time": 0, "archived": True}

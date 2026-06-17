@@ -124,9 +124,13 @@ class WLANSummary(BaseModel):
     enabled: bool = True
     security: str = ""
     wpa_mode: str = ""
+    wpa3_support: bool = False
     is_guest: bool = False
     network_id: str = ""
     hide_ssid: bool = False
+    fast_roaming: bool = False
+    bss_transition: bool = False
+    wlan_band: str = ""
 
     @classmethod
     def from_api(cls, data: dict) -> WLANSummary:
@@ -136,9 +140,13 @@ class WLANSummary(BaseModel):
             enabled=data.get("enabled", True),
             security=data.get("security", ""),
             wpa_mode=data.get("wpa_mode", ""),
+            wpa3_support=data.get("wpa3_support", False),
             is_guest=data.get("is_guest", False),
             network_id=data.get("networkconf_id", ""),
             hide_ssid=data.get("hide_ssid", False),
+            fast_roaming=data.get("fast_roaming_enabled", False),
+            bss_transition=data.get("bss_transition", False),
+            wlan_band=data.get("wlan_band", "both"),
         )
 
 

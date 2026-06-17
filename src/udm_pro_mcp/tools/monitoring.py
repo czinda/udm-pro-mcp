@@ -79,7 +79,10 @@ async def get_client_details(
         ("RX Bytes", _human_bytes(c.get("rx_bytes", 0))),
         ("Uptime", _human_duration(c.get("uptime", 0))),
         ("Switch Port", c.get("sw_port")),
+        ("AP MAC", c.get("ap_mac")),
         ("AP Name", c.get("ap_name")),
+        ("ESSID", c.get("essid")),
+        ("Radio Proto", c.get("radio_proto")),
         ("OUI", c.get("oui")),
     ]
     lines = [f"{k}: {v}" for k, v in fields if v is not None]

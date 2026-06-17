@@ -80,6 +80,26 @@ async def get_device_details(mac: str, ctx: Context[ServerSession, AppContext]) 
     result = "\n".join(f"{k}: {v}" for k, v in fields if v is not None)
     if port_lines:
         result += "\n\nActive Ports:\n" + "\n".join(port_lines)
+    radio_table = d.get("radio_table_stats") or d.get("radio_table", [])
+    radio_config = {r.get("radio", r.get("name", "")): r for r in d.get("radio_table", [])}
+    radio_lines = []
+    for r in radio_table:
+        radio_type = r.get("radio", "")
+        band = {"ng": "2.4GHz", "na": "5GHz", "6e": "6GHz"}.get(radio_type, radio_type)
+        ch = r.get("channel", "?")
+        cfg = radio_config.get(radio_type, {})
+        tx_power = r.get("tx_power", cfg.get("tx_power", "?"))
+        tx_mode = cfg.get("tx_power_mode", "")
+        width = r.get("extchannel", cfg.get("ht", "?"))
+        num_sta = r.get("num_sta", r.get("user-num_sta", "?"))
+        cu = r.get("cu_total", "?")
+        power_str = f"{tx_power}dBm" + (f" ({tx_mode})" if tx_mode else "")
+        radio_lines.append(
+            f"  {band}: ch={ch} width={width} power={power_str} "
+            f"clients={num_sta} cu={cu}%"
+        )
+    if radio_lines:
+        result += "\n\nRadios:\n" + "\n".join(radio_lines)
     return result
 
 
@@ -147,6 +167,20 @@ async def power_cycle_port(
         "devmgr", "power-cycle", mac=mac, port_idx=port_idx
     )
     return f"Power cycle initiated on port {port_idx} of switch {mac}."
+
+
+@mcp.tool()
+async def rename_device(
+    mac: str, name: str, ctx: Context[ServerSession, AppContext]
+) -> str:
+    """Set a friendly name for a UniFi device (AP, switch, gateway)."""
+    mac = mac.lower().replace("-", ":")
+    data = await _client(ctx).get(f"stat/device/{mac}")
+    if not data:
+        return f"No device found with MAC {mac}."
+    device_id = data[0].get("_id")
+    await _client(ctx).put(f"rest/device/{device_id}", {"name": name})
+    return f"Device {mac} renamed to '{name}'."
 
 
 def _format_speedtest(status: dict) -> str:

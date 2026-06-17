@@ -92,6 +92,119 @@ async def test_create_network(mock_ctx, mock_api_client):
 
 
 @pytest.mark.asyncio
+async def test_list_wlans_enhanced(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = [
+        {
+            "_id": "wlan1",
+            "name": "HomeWiFi",
+            "enabled": True,
+            "security": "wpapsk",
+            "wpa3_support": True,
+            "is_guest": False,
+            "hide_ssid": False,
+            "fast_roaming_enabled": True,
+            "bss_transition": True,
+            "wlan_band": "5g",
+        }
+    ]
+    from udm_pro_mcp.tools.network import list_wlans
+    result = await list_wlans(mock_ctx)
+    assert "HomeWiFi" in result
+    assert "WPA3" in result
+    assert "11r" in result
+    assert "11v" in result
+    assert "5GHz" in result
+
+
+@pytest.mark.asyncio
+async def test_get_wlan_details(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = [
+        {
+            "_id": "wlan1",
+            "name": "TestWiFi",
+            "enabled": True,
+            "security": "wpapsk",
+            "wpa_mode": "wpa2",
+            "wpa3_support": True,
+            "pmf_mode": "optional",
+            "fast_roaming_enabled": True,
+            "bss_transition": True,
+            "dtim_mode": "custom",
+            "dtim_ng": 3,
+            "dtim_na": 1,
+            "uapsd_enabled": True,
+            "mcastenhance_enabled": True,
+            "proxy_arp": True,
+            "l2_isolation": False,
+            "hide_ssid": False,
+            "wlan_band": "both",
+            "minrssi_enabled": True,
+            "minrssi": -70,
+        }
+    ]
+    from udm_pro_mcp.tools.network import get_wlan_details
+    result = await get_wlan_details("wlan1", mock_ctx)
+    assert "TestWiFi" in result
+    assert "optional" in result
+    assert "802.11r Fast Roaming" in result
+    assert "True" in result
+    assert "-70" in result
+    assert "[Security]" in result
+    assert "[Roaming]" in result
+
+
+@pytest.mark.asyncio
+async def test_get_wlan_details_not_found(mock_ctx, mock_api_client):
+    mock_api_client.get.return_value = []
+    from udm_pro_mcp.tools.network import get_wlan_details
+    result = await get_wlan_details("nonexistent", mock_ctx)
+    assert "not found" in result
+
+
+@pytest.mark.asyncio
+async def test_update_wlan(mock_ctx, mock_api_client):
+    mock_api_client.put.return_value = {}
+    from udm_pro_mcp.tools.network import update_wlan
+    result = await update_wlan(
+        "wlan1",
+        bss_transition=True,
+        fast_roaming_enabled=False,
+        pmf_mode="optional",
+        ctx=mock_ctx,
+    )
+    assert "updated" in result
+    assert "bss_transition=True" in result
+    assert "fast_roaming_enabled=False" in result
+    assert "pmf_mode=optional" in result
+    mock_api_client.put.assert_called_once_with(
+        "rest/wlanconf/wlan1",
+        {
+            "bss_transition": True,
+            "fast_roaming_enabled": False,
+            "pmf_mode": "optional",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_wlan_no_changes(mock_ctx, mock_api_client):
+    from udm_pro_mcp.tools.network import update_wlan
+    result = await update_wlan("wlan1", ctx=mock_ctx)
+    assert "No settings provided" in result
+    mock_api_client.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_wlan_multicast_maps_to_mcastenhance(mock_ctx, mock_api_client):
+    mock_api_client.put.return_value = {}
+    from udm_pro_mcp.tools.network import update_wlan
+    await update_wlan("wlan1", multicast_enhance=True, ctx=mock_ctx)
+    call_payload = mock_api_client.put.call_args[0][1]
+    assert "mcastenhance_enabled" in call_payload
+    assert call_payload["mcastenhance_enabled"] is True
+
+
+@pytest.mark.asyncio
 async def test_list_port_forwards(mock_ctx, mock_api_client):
     mock_api_client.get.return_value = [
         {
